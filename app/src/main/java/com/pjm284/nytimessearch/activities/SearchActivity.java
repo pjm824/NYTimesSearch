@@ -2,6 +2,7 @@ package com.pjm284.nytimessearch.activities;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.os.Handler;
 import android.support.v4.app.FragmentManager;
 import android.support.v4.view.MenuItemCompat;
 import android.support.v7.app.AppCompatActivity;
@@ -21,12 +22,15 @@ import com.pjm284.nytimessearch.adapters.ArticleAdapter;
 import com.pjm284.nytimessearch.fragments.SearchFilterFragment;
 import com.pjm284.nytimessearch.models.Article;
 import com.pjm284.nytimessearch.models.Search;
+import com.pjm284.nytimessearch.utils.EndlessRecyclerViewScrollListener;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.Queue;
 
 import cz.msebera.android.httpclient.Header;
 
@@ -50,6 +54,22 @@ public class SearchActivity extends AppCompatActivity implements SearchFilterFra
     ArticleAdapter adapter;
 
     private Search search;
+
+    private EndlessRecyclerViewScrollListener scrollListener;
+
+    private Queue pageNumberQueue = new LinkedList();
+
+    private Runnable runnableCode = new Runnable() {
+        @Override
+        public void run() {
+            if (!pageNumberQueue.isEmpty()) {
+                int page = (Integer) pageNumberQueue.remove();
+                search.setPageNumber(page);
+                search.getResults(searchResultHandler);
+                Log.d("Handlers", "Called on main thread");
+            }
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -75,7 +95,18 @@ public class SearchActivity extends AppCompatActivity implements SearchFilterFra
 
         adapter.setOnItemClickListener(articleItemClickListener);
 
-//        showFilterDialog();
+        scrollListener = new EndlessRecyclerViewScrollListener(gridLayoutManager) {
+            @Override
+            public void onLoadMore(int page, int totalItemsCount, RecyclerView view) {
+                Handler handler = new Handler();
+                pageNumberQueue.add(new Integer(page));
+                handler.postDelayed(runnableCode, 1000);
+
+            }
+        };
+
+        // support infinite scrolling
+        rvArticles.addOnScrollListener(scrollListener);
     }
 
     @Override
@@ -109,6 +140,7 @@ public class SearchActivity extends AppCompatActivity implements SearchFilterFra
             public boolean onMenuItemActionCollapse(MenuItem item) {
                 articles.clear();
                 adapter.notifyDataSetChanged();
+                scrollListener.resetState();
                 return true;
             }
         });
@@ -137,6 +169,7 @@ public class SearchActivity extends AppCompatActivity implements SearchFilterFra
     public void onArticleSearch(String query) {
         // clear existing articles in list
         articles.clear();
+        scrollListener.resetState();
 
         search.setSearchString(query);
         search.getResults(searchResultHandler);

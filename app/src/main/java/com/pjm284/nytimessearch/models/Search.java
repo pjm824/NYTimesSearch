@@ -86,6 +86,8 @@ public class Search {
             queryParams.put("begin_date", dateFormatted);
         }
 
+            queryParams.put("page", Integer.toString(getPageNumber()));
+
         if (getSortOrder() != null) {
             queryParams.put("sort", getSortOrder());
         }
